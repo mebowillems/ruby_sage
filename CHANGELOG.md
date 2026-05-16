@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
 ### Added
 
 - **`rake ruby_sage:doctor`** — diagnostic task that checks common install problems (provider/api_key, auth_check, scans present + recent, audience tagging coverage, `:user`-mode safety, `:admin` DB query safety, chat_turns table) and reports findings with actionable fixes. Exits non-zero on any error so it slots cleanly into a CI smoke test after a deploy. Format: `✓ check_name  message  ↳ fix`.
