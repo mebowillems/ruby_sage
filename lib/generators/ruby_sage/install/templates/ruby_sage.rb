@@ -26,6 +26,74 @@ RubySage.configure do |config|
   # nonce so RubySage can attach it to the widget's <script> tag.
   # config.csp_nonce = ->(controller) { controller.content_security_policy_nonce }
 
+  # === Mode ===
+  # Shapes the system prompt AND filters which artifacts are visible to the
+  # widget. Three audiences:
+  #   :developer — code/architecture answers with file paths and class names
+  #   :admin     — feature and workflow answers (no internals leaked)
+  #   :user      — end-user how-to only; refuses to discuss internals
+  # config.mode = :developer
+
+  # === Audience scoping (controls which artifacts are visible per mode) ===
+  # By default a heuristic tags each scanned file: services/jobs/policies are
+  # developer-only, models/controllers/views are developer+admin, and the
+  # :user audience is empty until you opt in.
+  #
+  # The simplest way to expose end-user help docs to :user mode:
+  # config.user_facing_paths = ["app/views/help/**/*", "app/views/marketing/**/*"]
+  #
+  # For full control, supply a callable that returns an array of audience
+  # symbols for each artifact. nil means "use the default heuristic."
+  # config.audience_for = ->(attrs) {
+  #   case attrs[:path]
+  #   when /\Aapp\/views\/public\// then %i[developer admin user]
+  #   when /\Aapp\/services\/billing\// then %i[developer]   # tighter than default
+  #   end
+  # }
+
+  # === Model pricing (USD per million tokens) ===
+  # The gem ships pricing for current Anthropic + OpenAI models. Override
+  # or add a custom model here without waiting for a gem release.
+  # config.model_pricing = {
+  #   "my-fine-tune" => {
+  #     input_per_million: 2.5,
+  #     output_per_million: 10.0,
+  #     cache_read_per_million: 0.25,
+  #     cache_write_per_million: 3.0
+  #   }
+  # }
+
+  # === Chat turn audit + usage tracking ===
+  # When true (default), every chat-widget turn writes a RubySage::ChatTurn
+  # row with the question, answer, mode, tool calls (incl. SQL the model ran
+  # in :admin mode), citations, and token usage. Browse at
+  # /ruby_sage/admin/chat_turns.
+  # config.persist_chat_turns = true
+  #
+  # Optionally identify who asked. Should return an ActiveRecord object.
+  # config.identify_asker = ->(controller) { controller.current_user }
+
+  # === Database queries (admin "magic search") ===
+  # When :admin mode is on AND this is true, the chat loop can run read-only
+  # SELECTs against your DB to answer live-data questions
+  # ("who is the author of post 47?"). Three safety layers: SELECT-only
+  # validation, mandatory transaction rollback, PostgreSQL statement_timeout.
+  # The strongest safety is a read-only DB user — set config.query_connection
+  # if true tenant isolation matters.
+  # config.enable_database_queries = false
+  #
+  # Tenant scoping (prompt-level reminder appended to the admin system prompt).
+  # For hard isolation pair with a read-only connection and DB row security.
+  # config.query_scope = ->(controller) { "organization_id = #{controller.current_user.organization_id}" }
+  #
+  # Use a dedicated read-only ActiveRecord connection for queries.
+  # config.query_connection = ->(_controller) { ReadOnlyDatabase.connection }
+  #
+  # Hard caps on query results.
+  # config.max_query_rows         = 100
+  # config.query_timeout_ms       = 5_000
+  # config.tool_loop_max_iterations = 5
+
   # === Scan retention ===
   # Keep the N most recent scans in the database; older ones are pruned.
   # config.scan_retention = 7

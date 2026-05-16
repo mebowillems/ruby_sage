@@ -66,28 +66,99 @@ module RubySage
     #   @return [Integer] provider request timeout in seconds.
     # @!attribute [rw] max_retries
     #   @return [Integer] maximum provider retry attempts.
+    # @!attribute [rw] audience_for
+    #   @return [Proc, nil] callable receiving an artifact attributes hash and
+    #     returning an array of audience symbols (+:developer+, +:admin+,
+    #     +:user+). Overrides the default heuristic in +AudienceClassifier+.
+    # @!attribute [rw] user_facing_paths
+    #   @return [Array<String>] glob patterns whose matching files are
+    #     additionally tagged for the +:user+ audience. Use this to expose
+    #     end-user help docs without writing a custom +audience_for+ callable.
+    # @!attribute [rw] enable_database_queries
+    #   @return [Boolean] when true and +mode+ is +:admin+, the chat loop can
+    #     run read-only SELECT queries against the host database via the
+    #     +query_database+ + +describe_table+ tools. Default false.
+    # @!attribute [rw] query_scope
+    #   @return [Proc, nil] callable receiving the request controller and
+    #     returning a SQL fragment ("organization_id = 42"). Appended to the
+    #     +:admin+ system prompt to remind the model to scope its queries.
+    #     V1 is prompt-level guidance; for hard tenant isolation, configure
+    #     +query_connection+ with row-level security.
+    # @!attribute [rw] query_connection
+    #   @return [Proc, nil] callable returning the ActiveRecord connection the
+    #     query tool should use. Use this to point at a read-only database
+    #     user. Defaults to +ActiveRecord::Base.connection+.
+    # @!attribute [rw] max_query_rows
+    #   @return [Integer] hard cap on rows returned per query. Default 100.
+    # @!attribute [rw] query_timeout_ms
+    #   @return [Integer] PostgreSQL statement_timeout per query. Default 5000.
+    # @!attribute [rw] tool_loop_max_iterations
+    #   @return [Integer] safety cap on tool-call iterations per chat turn.
+    #     Default 5.
+    # @!attribute [rw] persist_chat_turns
+    #   @return [Boolean] when true, every chat turn writes a +ChatTurn+ row
+    #     for audit + usage tracking. Default true.
+    # @!attribute [rw] identify_asker
+    #   @return [Proc, nil] callable receiving the controller and returning the
+    #     ActiveRecord object that asked the question (e.g. +current_user+) for
+    #     the +ChatTurn#asker+ polymorphic reference. Optional.
+    # @!attribute [rw] model_pricing
+    #   @return [Hash{String => Hash}] per-model USD pricing overrides merged
+    #     into +RubySage::CostCalculator::DEFAULT_PRICING+. Use this to add a
+    #     custom model or update prices without waiting for a gem release.
     attr_accessor :provider, :api_key, :model, :summarization_model,
                   :auth_check, :scope, :mode, :scan_retention,
                   :scanner_include, :scanner_exclude,
-                  :csp_nonce, :request_timeout, :max_retries
+                  :csp_nonce, :request_timeout, :max_retries,
+                  :audience_for, :user_facing_paths,
+                  :enable_database_queries, :query_scope, :query_connection,
+                  :max_query_rows, :query_timeout_ms, :tool_loop_max_iterations,
+                  :persist_chat_turns, :identify_asker, :model_pricing
 
     # Builds a configuration object with conservative defaults.
     #
     # @return [RubySage::Configuration]
     def initialize
+      assign_provider_defaults
+      assign_scanner_defaults
+      assign_audience_defaults
+      assign_database_query_defaults
+    end
+
+    private
+
+    def assign_provider_defaults
       @provider = :anthropic
       @model = "claude-sonnet-4-6"
       @summarization_model = "claude-haiku-4-5"
+      @request_timeout = 30
+      @max_retries = 2
+    end
+
+    def assign_scanner_defaults
       @scope = :admin
       @mode = :developer
       @scan_retention = 7
       @scanner_include = default_scanner_include
       @scanner_exclude = default_scanner_exclude
-      @request_timeout = 30
-      @max_retries = 2
     end
 
-    private
+    def assign_audience_defaults
+      @audience_for = nil
+      @user_facing_paths = []
+    end
+
+    def assign_database_query_defaults
+      @enable_database_queries = false
+      @query_scope = nil
+      @query_connection = nil
+      @max_query_rows = 100
+      @query_timeout_ms = 5_000
+      @tool_loop_max_iterations = 5
+      @persist_chat_turns = true
+      @identify_asker = nil
+      @model_pricing = {}
+    end
 
     def default_scanner_include
       DEFAULT_SCANNER_INCLUDE.dup

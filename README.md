@@ -101,6 +101,26 @@ bundle exec rake ruby_sage:scan
 
 Files unchanged since the previous scan are skipped via digest cache, so re-scans are cheap.
 
+### Use your local coding agent (no API key needed)
+
+If you already use Claude Code, Codex, or Cursor, your agent can produce the summaries instead of RubySage paying for them. Two-step flow:
+
+```bash
+bundle exec rake ruby_sage:scan:plan
+```
+
+Writes `tmp/ruby_sage/manifest.json` (one entry per scanned file, with redacted contents inlined) and `tmp/ruby_sage/INSTRUCTIONS.md`. Tell your agent:
+
+> Read `tmp/ruby_sage/INSTRUCTIONS.md` and follow it.
+
+The agent writes `tmp/ruby_sage/summaries.json`. Then:
+
+```bash
+bundle exec rake ruby_sage:scan:apply
+```
+
+A new completed `Scan` lands in your DB. Files unchanged since a prior scan reuse their cached summary, so the agent only summarizes what actually changed. Your `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` is never used here — the cost lives in your existing agent subscription.
+
 ### In production
 
 Daily cron is the typical pattern:
@@ -133,6 +153,8 @@ bundle exec rake ruby_sage:import_artifacts < artifacts.json
 ```
 
 Production skips LLM summarization entirely — zero token spend on scans.
+
+The agent-driven flow ships to production the same way. Run `scan:plan` + agent loop locally or in CI, then check the resulting `manifest.json` + `summaries.json` into a deploy artifact and run `scan:apply` on prod with `MANIFEST=...` and `SUMMARIES=...` pointing at the shipped files.
 
 ## Cost
 
@@ -209,6 +231,21 @@ RubySage.configure do |config|
   # Authorization (server-side, enforced before_action)
   config.scope                = :admin             # :admin | :signed_in | :public_rate_limited
   config.auth_check           = ->(c) { c.current_user&.admin? }
+
+  # Mode (shapes prompt + filters artifacts by audience)
+  config.mode                 = :developer         # :developer | :admin | :user
+
+  # Audience scoping
+  config.user_facing_paths    = ["app/views/help/**/*"] # additively tag :user
+  config.audience_for         = ->(attrs) { ... }       # full override
+
+  # Admin database queries (read-only SELECT via tool loop)
+  config.enable_database_queries  = false
+  config.query_scope              = ->(c) { "organization_id = #{c.current_user.organization_id}" }
+  config.query_connection         = ->(_c) { ReadOnlyDatabase.connection }
+  config.max_query_rows           = 100
+  config.query_timeout_ms         = 5_000
+  config.tool_loop_max_iterations = 5
 
   # Optional CSP nonce hook
   config.csp_nonce            = ->(c) { c.content_security_policy_nonce }
