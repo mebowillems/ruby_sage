@@ -5,6 +5,23 @@ require "json"
 namespace :ruby_sage do
   desc "Scan the host application's codebase and produce a knowledge snapshot."
   task scan: :environment do
+    unless Rails.env.production? || ENV["FORCE"] == "true"
+      warn ""
+      warn "╔══════════════════════════════════════════════════════════════════╗"
+      warn "║  ruby_sage:scan  calls the LLM API for every file — that costs  ║"
+      warn "║  money and produces weaker summaries than your local agent.     ║"
+      warn "║                                                                  ║"
+      warn "║  Recommended local workflow (no API spend):                     ║"
+      warn "║    1. rake ruby_sage:scan:plan                                  ║"
+      warn "║    2. Have your coding agent write tmp/ruby_sage/summaries.json ║"
+      warn "║    3. rake ruby_sage:scan:apply                                 ║"
+      warn "║                                                                  ║"
+      warn "║  To run the API scan anyway:  FORCE=true rake ruby_sage:scan    ║"
+      warn "╚══════════════════════════════════════════════════════════════════╝"
+      warn ""
+      abort "Aborted. Use the agent scan flow or set FORCE=true to override."
+    end
+
     scan = RubySage::Scanner.new(host_root: Rails.root).run
     puts "Scan ##{scan.id} #{scan.status} - #{scan.file_count} files, " \
          "#{scan.artifacts.count} artifacts."

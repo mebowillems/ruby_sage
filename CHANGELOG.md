@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-16
+
+### Changed
+
+- `rake ruby_sage:scan` now **aborts in non-production environments** with a clear message directing developers to the agent-driven scan flow (`scan:plan` → write `summaries.json` → `scan:apply`). Set `FORCE=true` to override and run the API scan locally anyway. Production (`Rails.env.production?`) is unaffected — the API scan runs as before. This prevents accidental token spend when a local coding agent can write better summaries for free.
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

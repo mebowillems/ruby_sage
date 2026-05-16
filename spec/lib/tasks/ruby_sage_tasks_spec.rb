@@ -17,6 +17,33 @@ RSpec.describe "ruby_sage rake tasks" do
     Rake.application = Rake::Application.new
   end
 
+  describe "ruby_sage:scan" do
+    context "in non-production without FORCE=true" do
+      it "aborts with a helpful message" do
+        allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new("development"))
+        ENV.delete("FORCE")
+        expect { rake.invoke_task("ruby_sage:scan") }.to raise_error(SystemExit)
+      end
+    end
+
+    context "with FORCE=true" do
+      around do |example|
+        ENV["FORCE"] = "true"
+        example.run
+      ensure
+        ENV.delete("FORCE")
+      end
+
+      it "proceeds to scan instead of aborting" do
+        allow(Rails).to receive(:env).and_return(ActiveSupport::StringInquirer.new("development"))
+        fake_scan = instance_double(RubySage::Scan, id: 1, status: "completed",
+                                                    file_count: 5, artifacts: double(count: 5))
+        allow(RubySage::Scanner).to receive(:new).and_return(double(run: fake_scan))
+        expect { capture_stdout { rake.invoke_task("ruby_sage:scan") } }.not_to raise_error
+      end
+    end
+  end
+
   describe "ruby_sage:export_artifacts and ruby_sage:import_artifacts" do
     it "round-trips a completed scan with its artifacts" do
       scan = RubySage::Scan.create!(
